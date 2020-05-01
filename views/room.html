@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Safe chat room</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                height: 100vh;
+                box-sizing: border-box;
+            }
+        </style>
+        <link
+            rel="stylesheet"
+            href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+            integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh"
+            crossorigin="anonymous"
+        />
+        <script src="/socket.io/socket.io.js"></script>
+        <script
+            src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+            integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
+            crossorigin="anonymous"
+        ></script>
+        <script
+            src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+            integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+            crossorigin="anonymous"
+        ></script>
+        <script
+            src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
+            integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
+            crossorigin="anonymous"
+        ></script>
+        <script>
+            $(async () => {
+                const cookie = document.cookie
+                    .split("; ")
+                    .reduce((prev, current) => {
+                        const [name, value] = current.split("=");
+                        prev[name] = value;
+                        return prev;
+                    }, {});
+
+                const response = await fetch(`/user/${cookie.uuid}`);
+                const { pseudo } = await response.json();
+                $("#pseudo-badge").text(pseudo);
+
+                const path = window.location.pathname.split("/");
+                const roomId = path[path.length - 1];
+                const socket = io("vps.tchateigne.fr:3002", {
+                    query: { roomId, pseudo },
+                });
+
+                $("form").submit((e) => {
+                    e.preventDefault(); // prevents page reloading
+                    socket.emit("chat message", `${pseudo} : ${$("#m").val()}`);
+                    $("#m").val("");
+                    return false;
+                });
+
+                socket.on("chat message", (msg) => {
+                    const splittedMsg = msg.split(" : ");
+                    const pseudo = splittedMsg.shift();
+                    const pseudoElement = $(
+                        "<span class='badge badge-primary'>"
+                    ).text(pseudo);
+                    $("#messages")
+                        .append(
+                            $("<li class='list-group-item py-1'>")
+                                .text(` ${splittedMsg.join(" : ")}`)
+                                .prepend(pseudoElement)
+                        )
+                        .scrollTop($("#messages").prop("scrollHeight"));
+                });
+
+                socket.on("chat connected", (msg) => {
+                    $("#messages").append(
+                        $(
+                            "<li class='list-group-item list-group-item-success py-1'>"
+                        ).text(msg)
+                    );
+                });
+
+                socket.on("chat disconnected", (msg) => {
+                    $("#messages").append(
+                        $(
+                            "<li class='list-group-item list-group-item-danger py-1'>"
+                        ).text(msg)
+                    );
+                });
+
+                socket.on("users update", (users) => {
+                    $("#connected-users").empty();
+		console.log(users)
+                    users.forEach((user) =>
+                        $("#connected-users").append(
+                            $("<span class= 'badge badge-primary mx-1'>").text(
+                                user
+                            )
+                        )
+                    );
+                });
+            });
+        </script>
+    </head>
+    <body>
+        <div class="d-flex h-100">
+            <div class="container-fluid p-0 h-100 w-75">
+                <div
+                    class="container-fluid p-0"
+                    style="height: calc(100% - 50px);"
+                >
+                    <ul
+                        class="list-group list-group-flush overflow-auto"
+                        style="max-height: 100%;"
+                        id="messages"
+                    ></ul>
+                </div>
+                <form class="form-inline col m-0 p-0" action="">
+                    <div class="input-group ml-3 col m-0 p-0">
+                        <div class="input-group-prepend">
+                            <div
+                                class="input-group-text"
+                                id="pseudo-badge"
+                            ></div>
+                        </div>
+                        <input
+                            class="form-control"
+                            id="m"
+                            autocomplete="off"
+                            placeholder="Type your message"
+                            autofocus
+                            required
+                        />
+                    </div>
+                    <button class="btn btn-success mx-3">Send</button>
+                </form>
+            </div>
+            <div class="container-fluid px-1 h-100 w-25 bg-light">
+                <h4>Connected users</h4>
+                <div id="connected-users"></div>
+            </div>
+        </div>
+    </body>
+</html>
